@@ -498,7 +498,6 @@ void Lddc::InitImuMsg(const ImuData& imu_data, ImuMsg& imu_msg, uint64_t& timest
 void Lddc::PublishImuData(LidarImuDataQueue& imu_data_queue, const uint8_t index) {
   ImuData imu_data;
   if (!imu_data_queue.Pop(imu_data)) {
-    //printf("Publish imu data failed, imu data queue pop failed.\n");
     return;
   }
 
@@ -506,18 +505,38 @@ void Lddc::PublishImuData(LidarImuDataQueue& imu_data_queue, const uint8_t index
   uint64_t timestamp;
   InitImuMsg(imu_data, imu_msg, timestamp);
 
+  // Create a custom IMU message with acceleration values multiplied by 9.8
+  ImuMsg custom_imu_msg = imu_msg;
+  custom_imu_msg.linear_acceleration.x *= 9.80665;
+  custom_imu_msg.linear_acceleration.y *= 9.80665;
+  custom_imu_msg.linear_acceleration.z *= 9.80665;
+
 #ifdef BUILDING_ROS1
   PublisherPtr publisher_ptr = GetCurrentImuPublisher(index);
+  // Publisher for custom IMU data
+  static ros::Publisher custom_imu_pub = cur_node_->GetNode().advertise<sensor_msgs::Imu>("livox/imu_custom", 1000);
 #elif defined BUILDING_ROS2
   Publisher<ImuMsg>::SharedPtr publisher_ptr = std::dynamic_pointer_cast<Publisher<ImuMsg>>(GetCurrentImuPublisher(index));
+  // Publisher for custom IMU data
+  static auto custom_imu_pub = cur_node_->create_publisher<sensor_msgs::msg::Imu>("livox/imu_custom", 1000);
 #endif
 
+  // Check if the output type is set to ROS
   if (kOutputToRos == output_type_) {
+    // Publish the original IMU message to the default topic
     publisher_ptr->publish(imu_msg);
+
+    // Publish the custom IMU message with acceleration multiplied by 9.8 to the new topic
+    custom_imu_pub.publish(custom_imu_msg);
   } else {
+    // If not outputting to ROS, check if we are building for ROS1 and bagging is enabled
 #ifdef BUILDING_ROS1
     if (bag_ && enable_imu_bag_) {
+      // Write the original IMU message to the bag file
       bag_->write(publisher_ptr->getTopic(), ros::Time(timestamp / 1000000000.0), imu_msg);
+
+      // Write the custom IMU message to the bag file under the new topic
+      bag_->write("livox/imu_custom", ros::Time(timestamp / 1000000000.0), custom_imu_msg);
     }
 #endif
   }
