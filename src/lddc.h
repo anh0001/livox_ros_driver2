@@ -44,7 +44,7 @@ typedef enum {
   kLivoxCustomMsg = 1,
   kPclPxyziMsg = 2,
   kLivoxImuMsg = 3,
-  kPointCloud_LivoxCustomMsgs = 4,
+  kPointCloud_LivoxCustomMsgs = 4, // PointCloud2 and LivoxCustomMsg
 } TransferType;
 
 /** Type-Definitions based on ROS versions */

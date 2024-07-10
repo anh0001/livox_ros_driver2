@@ -654,7 +654,7 @@ PublisherPtr Lddc::GetCurrentPublisher(uint8_t index) {
     }
 
     *pub = new ros::Publisher;
-    if (kPointCloud2Msg == transfer_format_) {
+    if (kPointCloud2Msg == transfer_format_ || kPointCloud_LivoxCustomMsgs == transfer_format_) {
       **pub =
           cur_node_->GetNode().advertise<sensor_msgs::PointCloud2>(name_str, queue_size);
       DRIVER_INFO(*cur_node_,
