@@ -44,6 +44,7 @@ typedef enum {
   kLivoxCustomMsg = 1,
   kPclPxyziMsg = 2,
   kLivoxImuMsg = 3,
+  kPointCloud_LivoxCustomMsgs = 4,
 } TransferType;
 
 /** Type-Definitions based on ROS versions */
@@ -112,7 +113,7 @@ class Lddc final {
 
   void InitCustomMsg(CustomMsg& livox_msg, const StoragePacket& pkg, uint8_t index);
   void FillPointsToCustomMsg(CustomMsg& livox_msg, const StoragePacket& pkg);
-  void PublishCustomPointData(const CustomMsg& livox_msg, const uint8_t index);
+  void PublishCustomPointData(const CustomMsg& livox_msg, const uint8_t index, bool is_custom);
 
   void InitPclMsg(const StoragePacket& pkg, PointCloud& cloud, uint64_t& timestamp);
   void FillPointsToPclMsg(const StoragePacket& pkg, PointCloud& pcl_msg);
