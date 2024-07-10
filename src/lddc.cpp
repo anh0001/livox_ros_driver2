@@ -199,34 +199,54 @@ void Lddc::PrepareExit(void) {
 }
 
 void Lddc::PublishPointcloud2(LidarDataQueue *queue, uint8_t index) {
-  while(!QueueIsEmpty(queue)) {
+  // Loop until the queue is empty
+  while (!QueueIsEmpty(queue)) {
     StoragePacket pkg;
     QueuePop(queue, &pkg);
     if (pkg.points.empty()) {
-      printf("Publish point cloud2 failed, the pkg points is empty.\n");
+      printf("Publish point cloud2 failed, the pkg points are empty.\n");
       continue;
     }
 
+    // Initialize PointCloud2 message
     PointCloud2 cloud;
     uint64_t timestamp = 0;
     InitPointcloud2Msg(pkg, cloud, timestamp);
-    PublishPointcloud2Data(index, timestamp, cloud);
+
+    // Check if transfer_format_ is set to 3
+    if (transfer_format_ == 3) {
+      // Publish PointCloud2 format to /livox/lidar
+      PublishPointcloud2Data(index, timestamp, cloud);
+
+      // Publish customized point cloud format to /livox/lidar_custom
+      CustomMsg custom_msg;
+      InitCustomMsg(custom_msg, pkg, index);
+      FillPointsToCustomMsg(custom_msg, pkg);
+      PublishCustomPointData(custom_msg, index, true); // Pass true to indicate custom publishing
+    } else {
+      // For other values of transfer_format_, use the default behavior
+      PublishPointcloud2Data(index, timestamp, cloud);
+    }
   }
 }
 
 void Lddc::PublishCustomPointcloud(LidarDataQueue *queue, uint8_t index) {
-  while(!QueueIsEmpty(queue)) {
+  // Loop until the queue is empty
+  while (!QueueIsEmpty(queue)) {
     StoragePacket pkg;
     QueuePop(queue, &pkg);
     if (pkg.points.empty()) {
-      printf("Publish custom point cloud failed, the pkg points is empty.\n");
+      printf("Publish custom point cloud failed, the pkg points are empty.\n");
       continue;
     }
 
-    CustomMsg livox_msg;
-    InitCustomMsg(livox_msg, pkg, index);
-    FillPointsToCustomMsg(livox_msg, pkg);
-    PublishCustomPointData(livox_msg, index);
+    // Initialize CustomMsg message
+    CustomMsg custom_msg;
+    InitCustomMsg(custom_msg, pkg, index);
+    FillPointsToCustomMsg(custom_msg, pkg);
+
+    // Publish customized point cloud format to /livox/lidar_custom
+    PublishCustomPointData(custom_msg, index, false); // Pass false to indicate default publishing
   }
 }
 
@@ -334,17 +354,20 @@ void Lddc::InitPointcloud2Msg(const StoragePacket& pkg, PointCloud2& cloud, uint
 
 void Lddc::PublishPointcloud2Data(const uint8_t index, const uint64_t timestamp, const PointCloud2& cloud) {
 #ifdef BUILDING_ROS1
+  // Get the current ROS1 publisher
   PublisherPtr publisher_ptr = Lddc::GetCurrentPublisher(index);
 #elif defined BUILDING_ROS2
-  Publisher<PointCloud2>::SharedPtr publisher_ptr =
-    std::dynamic_pointer_cast<Publisher<PointCloud2>>(GetCurrentPublisher(index));
+  // Get the current ROS2 publisher
+  Publisher<PointCloud2>::SharedPtr publisher_ptr = std::dynamic_pointer_cast<Publisher<PointCloud2>>(GetCurrentPublisher(index));
 #endif
 
   if (kOutputToRos == output_type_) {
+    // Publish the PointCloud2 message to ROS
     publisher_ptr->publish(cloud);
   } else {
 #ifdef BUILDING_ROS1
     if (bag_ && enable_lidar_bag_) {
+      // Write the PointCloud2 message to the bag file
       bag_->write(publisher_ptr->getTopic(), ros::Time(timestamp / 1000000000.0), cloud);
     }
 #endif
@@ -398,19 +421,49 @@ void Lddc::FillPointsToCustomMsg(CustomMsg& livox_msg, const StoragePacket& pkg)
   }
 }
 
-void Lddc::PublishCustomPointData(const CustomMsg& livox_msg, const uint8_t index) {
+void Lddc::PublishCustomPointData(const CustomMsg& custom_msg, const uint8_t index, bool is_custom) {
 #ifdef BUILDING_ROS1
-  PublisherPtr publisher_ptr = Lddc::GetCurrentPublisher(index);
+  static ros::Publisher custom_pub;
+  if (is_custom) {
+    // Create a ROS1 publisher for the custom point cloud topic if not already created
+    if (!custom_pub) {
+      custom_pub = cur_node_->GetNode().advertise<livox_ros_driver2::CustomMsg>("livox/lidar_custom", 1000);
+    }
+  } else {
+    // Get the current ROS1 publisher
+    PublisherPtr publisher_ptr = Lddc::GetCurrentPublisher(index);
+  }
 #elif defined BUILDING_ROS2
-  Publisher<CustomMsg>::SharedPtr publisher_ptr = std::dynamic_pointer_cast<Publisher<CustomMsg>>(GetCurrentPublisher(index));
+  static auto custom_pub;
+  if (is_custom) {
+    // Create a ROS2 publisher for the custom point cloud topic if not already created
+    if (!custom_pub) {
+      custom_pub = cur_node_->create_publisher<CustomMsg>("livox/lidar_custom", 1000);
+    }
+  } else {
+    // Get the current ROS2 publisher
+    Publisher<CustomMsg>::SharedPtr publisher_ptr = std::dynamic_pointer_cast<Publisher<CustomMsg>>(GetCurrentPublisher(index));
+  }
 #endif
 
   if (kOutputToRos == output_type_) {
-    publisher_ptr->publish(livox_msg);
+    if (is_custom) {
+      // Publish the custom point cloud message to ROS
+      custom_pub.publish(custom_msg);
+    } else {
+      // Publish the custom point cloud message to ROS
+      publisher_ptr->publish(custom_msg);
+    }
   } else {
 #ifdef BUILDING_ROS1
     if (bag_ && enable_lidar_bag_) {
-      bag_->write(publisher_ptr->getTopic(), ros::Time(livox_msg.timebase / 1000000000.0), livox_msg);
+      if (is_custom) {
+        // Write the custom point cloud message to the bag file
+        bag_->write("livox/lidar_custom", ros::Time(custom_msg.timebase / 1000000000.0), custom_msg);
+      } else {
+        // Write the custom point cloud message to the bag file
+        bag_->write(publisher_ptr->getTopic(), ros::Time(custom_msg.timebase / 1000000000.0), custom_msg);
+      }
     }
 #endif
   }
