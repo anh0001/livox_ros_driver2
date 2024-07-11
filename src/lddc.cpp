@@ -568,11 +568,11 @@ void Lddc::PublishImuData(LidarImuDataQueue& imu_data_queue, const uint8_t index
 #ifdef BUILDING_ROS1
   PublisherPtr publisher_ptr = GetCurrentImuPublisher(index);
   // Publisher for custom IMU data
-  static ros::Publisher custom_imu_pub = cur_node_->GetNode().advertise<sensor_msgs::Imu>("livox/imu_custom", 1000);
+  static ros::Publisher custom_imu_pub = cur_node_->GetNode().advertise<sensor_msgs::Imu>("livox/imu_custom", 200);
 #elif defined BUILDING_ROS2
   Publisher<ImuMsg>::SharedPtr publisher_ptr = std::dynamic_pointer_cast<Publisher<ImuMsg>>(GetCurrentImuPublisher(index));
   // Publisher for custom IMU data
-  static auto custom_imu_pub = cur_node_->create_publisher<sensor_msgs::msg::Imu>("livox/imu_custom", 1000);
+  static auto custom_imu_pub = cur_node_->create_publisher<sensor_msgs::msg::Imu>("livox/imu_custom", 200);
 #endif
 
   // Check if the output type is set to ROS
