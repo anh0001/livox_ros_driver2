@@ -452,7 +452,7 @@ void Lddc::PublishCustomPointData(const CustomMsg& custom_msg, const uint8_t ind
     }
   }
 #elif defined BUILDING_ROS2
-  static auto custom_pub = nullptr;
+  static Publisher<CustomMsg>::SharedPtr custom_pub = nullptr;
   auto publisher_ptr = std::dynamic_pointer_cast<Publisher<CustomMsg>>(GetCurrentPublisher(index));
   if (is_custom) {
     // Create a ROS2 publisher for the custom point cloud topic if not already created
@@ -581,7 +581,7 @@ void Lddc::PublishImuData(LidarImuDataQueue& imu_data_queue, const uint8_t index
     publisher_ptr->publish(imu_msg);
 
     // Publish the custom IMU message with acceleration multiplied by 9.8 to the new topic
-    custom_imu_pub.publish(custom_imu_msg);
+    custom_imu_pub->publish(custom_imu_msg);
   } else {
     // If not outputting to ROS, check if we are building for ROS1 and bagging is enabled
 #ifdef BUILDING_ROS1
