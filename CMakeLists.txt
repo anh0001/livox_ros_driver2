@@ -1,5 +1,10 @@
 # judge which cmake codes to use 
-if(ROS_EDITION STREQUAL "ROS1")
+if(NOT DEFINED ROS_EDITION OR "${ROS_EDITION}" STREQUAL "")
+  set(ROS_EDITION "ROS2")
+endif()
+string(TOUPPER "${ROS_EDITION}" ROS_EDITION_UPPER)
+
+if(ROS_EDITION_UPPER STREQUAL "ROS1")
 
   # Copyright(c) 2019 livoxtech limited.
 
@@ -184,7 +189,7 @@ if(ROS_EDITION STREQUAL "ROS1")
   #---------------------------------------------------------------------------------------
 
 
-else(ROS_EDITION STREQUAL "ROS2")
+else()
 
   # Copyright(c) 2020 livoxtech limited.
 
@@ -281,15 +286,32 @@ else(ROS_EDITION STREQUAL "ROS2")
 
   target_include_directories(${PROJECT_NAME} PRIVATE ${livox_sdk_INCLUDE_DIRS})
 
-  # get include directories of custom msg headers
-  if(DEFINED ENV{ROS_DISTRO} AND "$ENV{ROS_DISTRO}" STREQUAL "humble")
-    rosidl_get_typesupport_target(cpp_typesupport_target
-    ${LIVOX_INTERFACES} "rosidl_typesupport_cpp")
-    target_link_libraries(${PROJECT_NAME} "${cpp_typesupport_target}")
+  # determine ros2 distro with humble default to ensure colcon build selects humble behavior
+  set(LIVOX_ROS2_TARGET_DISTRO "humble")
+  if(DEFINED HUMBLE_ROS AND NOT "${HUMBLE_ROS}" STREQUAL "")
+    string(TOLOWER "${HUMBLE_ROS}" LIVOX_ROS2_TARGET_DISTRO)
+  elseif(DEFINED ENV{ROS_DISTRO} AND NOT "$ENV{ROS_DISTRO}" STREQUAL "")
+    string(TOLOWER "$ENV{ROS_DISTRO}" LIVOX_ROS2_TARGET_DISTRO)
+  endif()
+
+  set(LIVOX_TYPESUPPORT_TARGET "")
+  if(LIVOX_ROS2_TARGET_DISTRO STREQUAL "humble" AND COMMAND rosidl_get_typesupport_target)
+    rosidl_get_typesupport_target(LIVOX_TYPESUPPORT_TARGET
+      ${LIVOX_INTERFACES} "rosidl_typesupport_cpp")
   else()
-    set(LIVOX_INTERFACE_TARGET "${LIVOX_INTERFACES}__rosidl_typesupport_cpp")
-    add_dependencies(${PROJECT_NAME} ${LIVOX_INTERFACES})
-    get_target_property(LIVOX_INTERFACES_INCLUDE_DIRECTORIES ${LIVOX_INTERFACE_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
+    set(LIVOX_TYPESUPPORT_TARGET "${LIVOX_INTERFACES}__rosidl_typesupport_cpp")
+  endif()
+
+  add_dependencies(${PROJECT_NAME} ${LIVOX_INTERFACES})
+
+  set(LIVOX_INTERFACES_INCLUDE_DIRECTORIES "")
+  if(LIVOX_TYPESUPPORT_TARGET AND TARGET ${LIVOX_TYPESUPPORT_TARGET})
+    get_target_property(LIVOX_INTERFACES_INCLUDE_DIRECTORIES
+      ${LIVOX_TYPESUPPORT_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
+    if(LIVOX_INTERFACES_INCLUDE_DIRECTORIES STREQUAL "NOTFOUND" OR
+        LIVOX_INTERFACES_INCLUDE_DIRECTORIES MATCHES "-NOTFOUND$")
+      set(LIVOX_INTERFACES_INCLUDE_DIRECTORIES "")
+    endif()
   endif()
 
   # include file direcotry
@@ -305,12 +327,15 @@ else(ROS_EDITION STREQUAL "ROS2")
   # link libraries
   target_link_libraries(${PROJECT_NAME}
     ${LIVOX_LIDAR_SDK_LIBRARY}
-    ${LIVOX_INTERFACE_TARGET}   # for custom msgs
     ${PPT_LIBRARY}
     ${Boost_LIBRARY}
     ${PCL_LIBRARIES}
     ${APR_LIBRARIES}
   )
+
+  if(LIVOX_TYPESUPPORT_TARGET)
+    target_link_libraries(${PROJECT_NAME} ${LIVOX_TYPESUPPORT_TARGET})
+  endif()
 
   rclcpp_components_register_node(${PROJECT_NAME}
     PLUGIN "livox_ros::DriverNode"
