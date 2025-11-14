@@ -6,6 +6,15 @@ Livox ROS Driver 2 is the 2nd-generation driver package used to connect LiDAR pr
 
   As a debugging tool, Livox ROS Driver is not recommended for mass production but limited to test scenarios. You should optimize the code based on the original source to meet your various needs.
 
+## Repo differences
+
+This repository carries a small divergence from the upstream Livox release:
+
+- `src/livox_ros_driver2/src/lddc.cpp` now treats `xfer_format = 4` (publish both PointCloud2 and Livox CustomMsg) the same as `xfer_format = 0` when creating ROS 2 publishers. This prevents a nullptr publisher when the driver is instructed to output both message types simultaneously, letting `/livox/lidar` (PointCloud2) and `/livox/lidar_custom` (Livox CustomMsg) coexist without crashes.
+- `src/livox_ros_driver2/src/lddc.cpp` also publishes `/livox/imu_custom`, where linear acceleration values are multiplied by 9.80665 to expose SI units alongside the original Livox measurements.
+
+All other behaviour remains identical to the official [Livox-SDK/livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2) release.
+
 ## 1. Preparation
 
 ### 1.1 OS requirements
